@@ -1,0 +1,74 @@
+#  <-- tasks file can include smaller files if warranted
+- name: Add NGINX mainline repo
+  yum_repository:
+    name: nginx-mainline.repo
+    description: NGINX mainline repo
+    baseurl: http://nginx.org/packages/mainline/centos/7/$basearch/
+    gpgcheck: no
+    tags: ngnix
+
+- name: Install NGINX Mainline
+  yum: name=nginx state=installed
+  tags: nginx
+
+- name: Enable NGINX startup
+  systemd: name=nginx state=started enabled=true
+  tags: nginx
+
+- name: Delete original logrotate nginx file
+  file: path=/etc/logrotate.d/nginx state=absent
+  tags: nginx
+
+- name: Copy nginx logrotate modified file
+  copy: src=nginx dest=/etc/logrotate.d/nginx
+  tags: nginx
+
+- name: Restart logrotate
+  command: /usr/sbin/logrotate -f /etc/logrotate.conf
+  ignore_errors: yes
+  tags: nginx
+
+- name: Copy nginx config
+  copy: src=nginx.conf dest=/etc/nginx/nginx.conf
+  tags: nginx
+
+- name: Create directory for ssl's
+  file: path=/etc/nginx/ssl state=directory owner=root group=root mode=0750
+  tags: nginx
+
+- stat:
+  path: /etc/nginx/conf.d/php-fpm.conf
+  register: fpm_exist
+  tags: nginx
+
+- name: Backup original php-fpm config
+  command: mv /etc/nginx/conf.d/php-fpm.conf /etc/nginx/conf.d/php-fpm.conf.bak
+  when: fpm_exist.stat.exists == True
+  tags: nginx
+
+- name: Copy php-fpm config for nginx
+  copy: src=php-fpm.conf dest=/etc/nginx/conf.d/php-fpm.conf owner=root group=root mode=0644
+  tags: nginx
+
+- name: Create includes directory
+  file: path=/etc/nginx/includes state=directory owner=root group=root mode=644
+  tags: nginx
+
+- name: Copy include files
+  copy: src={{item}} dest=/etc/nginx/includes/{{item}}
+  with_items:
+    - open_file_cache.conf
+    - static_location.conf
+    - error_page.conf
+    - add_header.conf
+    - common_locations.conf
+  tags: nginx
+
+- name: Rewrite default config
+  command: echo "" > /etc/nginx/conf.d/default.conf
+  tags: nginx
+
+- name: Template copy
+  template: src=site.config.j2 dest=/etc/nginx/conf.d/{{domain}}.conf owner=root group=root mode=0644
+  notify: restart nginx
+  tags: nginx

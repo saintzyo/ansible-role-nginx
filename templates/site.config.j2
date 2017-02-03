@@ -1,0 +1,27 @@
+server {
+    listen {{hostvars[inventory_hostname]['ansible_default_ipv4']['address']}}:80;
+    server_name www.{{domain}};
+    root /home/{{user}}/{{domain}}/htdocs;
+
+    access_log /var/log/nginx/{{domain}}-access.log;
+    error_log  /var/log/nginx/{{domain}}-error.log;
+
+    include  includes/add_header.conf;
+
+    location / {
+         try_files $uri $uri/ /index.php?$args;
+         include /home/{{user}}/{{domain}}/.htrewrite;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        fastcgi_pass   php-fpm;
+        include        fastcgi_params;
+        fastcgi_index  index.php;
+        fastcgi_param  APP_ENV production;
+        fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+    }
+
+    include includes/static_location.conf;
+    include includes/common_locations.conf;
+}
